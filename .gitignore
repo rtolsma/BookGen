@@ -1,0 +1,7 @@
+venv/
+_*/
+.idea/
+*.pyc
+*.log
+
+
