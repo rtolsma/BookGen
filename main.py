@@ -169,7 +169,11 @@ def downloadBook(book, path=None) :
     #download link
     bookFile=requests.get(soup.find("a",text="DOWNLOAD")["href"],stream=True)
     #Writes the downloaded file to system as it downloads
-    with open( str(path)+book.title, "wb") as f:
+    if path:
+        filepath=str(path)+book.title
+    else :
+        filepath=book.title
+    with open( filepath, "wb") as f:
         for chunk in bookFile.iter_content(chunk_size=1024): 
             if chunk: # filter out keep-alive new chunks
                 f.write(chunk)
