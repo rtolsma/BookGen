@@ -1,4 +1,4 @@
-###BookGen
+# BookGen
 
 This is a Python script used to help the process of accessing free educational books online.
 
