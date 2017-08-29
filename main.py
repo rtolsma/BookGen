@@ -32,21 +32,59 @@ LIBGEN="http://libgen.io/"
 TITLE_CLASS="a-link-normal s-access-detail-page s-color-twister-title-link a-text-normal"
 
 def main():
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="Book Title")
-    parser.add_argument("title")
+    # Parse arguments"error"
+    parser = argparse.ArgumentParser(description="Book Downloader")
+    parser.add_argument("--title","-t", required=True, type=str)
+    parser.add_argument("--isbn","-i" ,action="store_true")
+    parser.add_argument("--path", "-p", type=str)
+    parser.add_argument("--auto", "-a", action="store_true")
     args = parser.parse_args()
 
+
     title = args.title
+    useISBN=args.isbn
+    filePath=args.path
+    automate=args.auto
+
+
+
+    ###More shitty code
     try:
         books = getListing(title)
 
-        choice = getChoice(books)
-        bookISBN = getISBN(books)
 
-        downloadBook(bookISBN)  # path
-    except:
-        print("error")
+        if automate :
+           book=auto(books, useISBN)
+
+
+        else :
+            choice=getChoice(books)
+            
+            if useISBN: 
+                search=getISBN(choice)
+            else:
+                search=choice.title
+
+            libBooks=getBook(choice.title, search) 
+            newChoice=getChoice(libBooks)      
+            book=newChoice
+
+
+        downloadBook(book, filePath)  # path
+    except Exception as e:
+        print(e)
+
+
+def auto(books, useISBN=False) :
+    choice=books[0]
+    if useISBN:
+        search=getISBN(choice)
+    else :
+        search=choice.title
+    
+    book=getBook(choice.title, search)[0]
+
+    return book
 
 
 def getListing(title):
@@ -92,8 +130,8 @@ def getISBN(book):
     return ISBN13
 
 
-#Can take in ISBN or titles
-def getBook(search, ISBN=False, decide=False): 
+#Can take in ISBN or titles, searches libgen
+def getBook(search, ISBN=None): 
     
     if ISBN :
         libpage=requests.get(LIBGEN_SEARCH.format(ISBN))
@@ -117,12 +155,7 @@ def getBook(search, ISBN=False, decide=False):
         book=Book(title, url, filetype)
         books.append(book)
     
-    if decide :
-        choice=getChoice(books)
-    else :
-        choice=books[0]
-    
-    return choice
+    return books
 
 
 def downloadBook(book, path=None) :
@@ -136,14 +169,12 @@ def downloadBook(book, path=None) :
     #download link
     bookFile=requests.get(soup.find("a",text="DOWNLOAD")["href"],stream=True)
     #Writes the downloaded file to system as it downloads
-    with open(book.title, "wb") as f:
+    with open( str(path)+book.title, "wb") as f:
         for chunk in bookFile.iter_content(chunk_size=1024): 
             if chunk: # filter out keep-alive new chunks
                 f.write(chunk)
 
     print("Download Finished")
-
-    #print(resultsTable)
 
 
 if __name__ == "__main__":
