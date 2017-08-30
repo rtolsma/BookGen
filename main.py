@@ -3,6 +3,8 @@ import argparse
 import requests
 from bs4 import BeautifulSoup
 import re
+import sys
+import traceback
 from book import Book
 '''
 Structure:
@@ -30,6 +32,7 @@ AMZN="http://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keyw
 LIBGEN_SEARCH="http://libgen.io/search.php?req={}&lg_topic=libgen&open=0&view=simple&res=25&phrase=1&column=def"
 LIBGEN="http://libgen.io/"
 TITLE_CLASS="a-link-normal s-access-detail-page s-color-twister-title-link a-text-normal"
+LIST_LENGTH=10
 
 def main():
     # Parse arguments"error"
@@ -54,18 +57,24 @@ def main():
 
 
         if automate :
-           book=auto(books, useISBN)
+           book=auto(books,title, useISBN)
 
 
         else :
             choice=getChoice(books)
             
             if useISBN: 
+                ###Verify that ISBN works
+                while not getISBN(choice) :
+                    print("\n\nNo available ISBN for the chosen book.")
+                    print("Please select another option, or search without ISBN option.\n\n")
+                    choice=getChoice(books)
+                
                 search=getISBN(choice)
             else:
                 search=choice.title
 
-            libBooks=getBook(choice.title, search) 
+            libBooks=getBook(search) 
             newChoice=getChoice(libBooks)      
             book=newChoice
 
@@ -73,16 +82,31 @@ def main():
         downloadBook(book, filePath)  # path
     except Exception as e:
         print(e)
+        print(sys.exc_info())
+        traceback.print_exc()
 
 
-def auto(books, useISBN=False) :
-    choice=books[0]
+def auto(books, title=None , useISBN=False) :
+    search=None
+    isbn=None
+    index=0
     if useISBN:
-        search=getISBN(choice)
-    else :
-        search=choice.title
+        ###Go through list of books if no ISBN available
+        while isbn==None and index<len(books) :
+            isbn=getISBN(books[index])
+            index+=1
+        ###Check if none worked
+        if isbn:
+            search=isbn 
+        else :
+            print("No related ISBNs were found. Using title based search")
+            search=title
     
-    book=getBook(choice.title, search)[0]
+    
+    else :
+        search=title
+    
+    book=getBook(search)[0]
 
     return book
 
@@ -93,12 +117,15 @@ def getListing(title):
     #scrape results data
 
     results=soup.findAll(id=re.compile("result_[0-9]"))
-    results=results[0:2] #testing limit to 2
+    results=results[0:LIST_LENGTH] #testing limit to 10
     #results=soup.findAll("a", class_=TITLE_CLASS)
     books=[]
     for result in results :
         bookHTML=result.find("a", class_=TITLE_CLASS)
-        books.append(Book(bookHTML.text, bookHTML["href"]))
+        
+        #Filter out non-standard item cards
+        if bookHTML :
+            books.append(Book(bookHTML.text, bookHTML["href"]))
         
     return books
     
@@ -114,7 +141,8 @@ def getChoice(books):
     while userInput<0 or userInput>len(books) :
         try:
             userInput=int(input("Enter your choice [1-{}] : ".format(len(books))))
-
+            if userInput<0 or userInput>len(books) :
+                raise ValueError
         except ValueError:
             print("Input must be a valid integer between [1-{}]".format(len(books)))
             continue
@@ -125,18 +153,21 @@ def getChoice(books):
 
 def getISBN(book):
     bookPage=requests.get(book.url)
-    ISBN13=re.search("978-[0-9]+", bookPage.text).group(0)
+    regSearch=re.search("978-[0-9]+", bookPage.text)
+
+    if(regSearch) :
+        ISBN13=regSearch.group(0)
+    else :
+        ISBN13=None    
 
     return ISBN13
 
 
 #Can take in ISBN or titles, searches libgen
-def getBook(search, ISBN=None): 
+def getBook(search): 
     
-    if ISBN :
-        libpage=requests.get(LIBGEN_SEARCH.format(ISBN))
-    else :
-        libpage=requests.get(LIBGEN_SEARCH.format(search))
+
+    libpage=requests.get(LIBGEN_SEARCH.format(search))
     
     
     
@@ -150,12 +181,14 @@ def getBook(search, ISBN=None):
         row=tableRows[x]
         cells=row.findAll("td")
         url=LIBGEN+cells[2].find("a")["href"]
-        title=cells[2].find("a").text
         filetype=cells[8].text
+        title=cells[2].find("a").text+"."+filetype
+
         book=Book(title, url, filetype)
         books.append(book)
     
-    return books
+    ###
+    return books[0:LIST_LENGTH]
 
 
 def downloadBook(book, path=None) :
@@ -173,6 +206,8 @@ def downloadBook(book, path=None) :
         filepath=str(path)+book.title
     else :
         filepath=book.title
+    
+    print("Starting Download Of: ", book.title)
     with open( filepath, "wb") as f:
         for chunk in bookFile.iter_content(chunk_size=1024): 
             if chunk: # filter out keep-alive new chunks
