@@ -57,6 +57,7 @@ def main():
 
 
         if automate :
+
            book=auto(books,title, useISBN)
 
 
@@ -74,9 +75,7 @@ def main():
             else:
                 search=choice.title
 
-            libBooks=getBook(search) 
-            newChoice=getChoice(libBooks)      
-            book=newChoice
+            book=getChoice(getBook(search))
 
 
         downloadBook(book, filePath)  # path
@@ -111,13 +110,13 @@ def auto(books, title=None , useISBN=False) :
     return book
 
 
-def getListing(title):
+def getListing(title, length=LIST_LENGTH):
     page=requests.get(AMZN+title)
     soup=BeautifulSoup(page.content,"html.parser")
     #scrape results data
 
     results=soup.findAll(id=re.compile("result_[0-9]"))
-    results=results[0:LIST_LENGTH] #testing limit to 10
+    results=results[0:length] #testing limit to 10
     #results=soup.findAll("a", class_=TITLE_CLASS)
     books=[]
     for result in results :
